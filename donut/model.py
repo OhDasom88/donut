@@ -98,7 +98,10 @@ class SwinEncoder(nn.Module):
             x: (batch_size, num_channels, height, width)
         """
         x = self.model.patch_embed(x)
-        x = self.model.pos_drop(x)
+        # dasom 2025-07-07
+        # swin 공시 모델 구조 구현에서 pos drop이 제거됨
+        # x = self.model.pos_drop(x)
+
         x = self.model.layers(x)
         return x
 
@@ -207,7 +210,18 @@ class BARTDecoder(nn.Module):
         if newly_added_num > 0:
             self.model.resize_token_embeddings(len(self.tokenizer))
 
-    def prepare_inputs_for_inference(self, input_ids: torch.Tensor, encoder_outputs: torch.Tensor, past_key_values=None, past=None, use_cache: bool = None, attention_mask: torch.Tensor = None):
+    # def prepare_inputs_for_inference(self, input_ids: torch.Tensor, encoder_outputs: torch.Tensor, past_key_values=None, past=None, use_cache: bool = None, attention_mask: torch.Tensor = None):
+    # dasom 2025-07-07
+    def prepare_inputs_for_inference(
+            self, 
+            input_ids: torch.Tensor, 
+            encoder_outputs: torch.Tensor, 
+            past_key_values=None, 
+            past=None, 
+            use_cache: bool = None, 
+            attention_mask: torch.Tensor = None,
+            **kwargs# 버전이 바뀌면서 BartDecoder에서 추가된 인자 처리
+        ):
         """
         Args:
             input_ids: (batch_size, sequence_lenth)
@@ -216,6 +230,7 @@ class BARTDecoder(nn.Module):
             attention_mask: (batch_size, sequence_length)
             encoder_hidden_states: (batch_size, sequence_length, embedding_dim)
         """
+        kwargs # 버전이 바뀌면서 BartDecoder에서 추가된 인자 처리 dasom 2025-07-07
         # for compatibility with transformers==4.11.x
         if past is not None:
             past_key_values = past
@@ -407,6 +422,36 @@ class DonutModel(PreTrainedModel):
             decode_labels: (batch_size, sequence_length)
         """
         encoder_outputs = self.encoder(image_tensors)
+
+        # dasom 2025-07-07
+        # 디버깅 중 모델 출력 확인
+        # print(f"encoder_outputs.last_hidden_state.shape: {encoder_outputs.last_hidden_state.shape}")
+        # print(f"decoder_input_ids.shape: {decoder_input_ids.shape}")
+        # print(f"decoder_labels.shape: {decoder_labels.shape}")
+        # decoder_model = self.decoder.model.to(encoder_outputs.device)
+        # decoder_model = decoder_model.half()
+        # encoder_outputs = encoder_outputs.flatten(1,2)
+
+        with torch.autocast(device_type=encoder_outputs.device.type, dtype=torch.float16):
+            # encoder_outputs = encoder_outputs.flatten(1, 2)
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                encoder_hidden_states=encoder_outputs.flatten(1, 2),
+                labels=decoder_labels,
+            )
+        return decoder_outputs
+
+
+        decoder_outputs = decoder_model(
+            input_ids=decoder_input_ids,
+            encoder_hidden_states=encoder_outputs,
+            labels=decoder_labels,
+        )
+
+
+
+        return decoder_outputs
+
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
             encoder_hidden_states=encoder_outputs,
@@ -464,20 +509,46 @@ class DonutModel(PreTrainedModel):
         if len(prompt_tensors.size()) == 1:
             prompt_tensors = prompt_tensors.unsqueeze(0)
 
-        # get decoder output
-        decoder_output = self.decoder.model.generate(
-            decoder_input_ids=prompt_tensors,
-            encoder_outputs=encoder_outputs,
-            max_length=self.config.max_length,
-            early_stopping=True,
-            pad_token_id=self.decoder.tokenizer.pad_token_id,
-            eos_token_id=self.decoder.tokenizer.eos_token_id,
-            use_cache=True,
-            num_beams=1,
-            bad_words_ids=[[self.decoder.tokenizer.unk_token_id]],
-            return_dict_in_generate=True,
-            output_attentions=return_attentions,
-        )
+
+
+        # # get decoder output
+        # decoder_output = self.decoder.model.generate(
+        #     decoder_input_ids=prompt_tensors,
+        #     encoder_outputs=encoder_outputs,
+        #     max_length=self.config.max_length,
+        #     early_stopping=True,
+        #     pad_token_id=self.decoder.tokenizer.pad_token_id,
+        #     eos_token_id=self.decoder.tokenizer.eos_token_id,
+        #     use_cache=True,
+        #     num_beams=1,
+        #     bad_words_ids=[[self.decoder.tokenizer.unk_token_id]],
+        #     return_dict_in_generate=True,
+        #     output_attentions=return_attentions,
+        # )
+
+
+
+        with torch.autocast(device_type=str(self.decoder.model.device), dtype=torch.float16):
+            # encoder_outputs = encoder_outputs.flatten(1, 2)
+            encoder_outputs.last_hidden_state = encoder_outputs.last_hidden_state.flatten(1, 2)
+            decoder_output = self.decoder.model.generate(
+                # input_ids=prompt_tensors,
+                # encoder_hidden_states=encoder_outputs.flatten(1, 2),
+                # labels=decoder_labels,
+                decoder_input_ids=prompt_tensors,
+                encoder_outputs=encoder_outputs,
+                max_length=self.config.max_length,
+                early_stopping=True,
+                pad_token_id=self.decoder.tokenizer.pad_token_id,
+                eos_token_id=self.decoder.tokenizer.eos_token_id,
+                use_cache=True,
+                num_beams=1,
+                bad_words_ids=[[self.decoder.tokenizer.unk_token_id]],
+                return_dict_in_generate=True,
+                output_attentions=return_attentions,
+            )
+        # return decoder_outputs
+
 
         output = {"predictions": list()}
         for seq in self.decoder.tokenizer.batch_decode(decoder_output.sequences):

@@ -18,6 +18,9 @@ from transformers.modeling_utils import PreTrainedModel
 from zss import Node
 
 
+
+
+
 def save_json(write_path: Union[str, bytes, os.PathLike], save_obj: Any):
     with open(write_path, "w") as f:
         json.dump(save_obj, f)
@@ -61,11 +64,49 @@ class DonutDataset(Dataset):
         self.prompt_end_token = prompt_end_token if prompt_end_token else task_start_token
         self.sort_json_key = sort_json_key
 
-        self.dataset = load_dataset(dataset_name_or_path, split=self.split)
+ 
+        # self.dataset = load_dataset(dataset_name_or_path, split=self.split)
+ 
+        from datasets import Dataset, DatasetDict, Image, Features, Value
+        import pyarrow as pa
+
+
+        dataset_dir = "/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990"
+        partial_features = Features({
+            "image": Image(),  # 이미지 경로 복원
+            "ground_truth": Value("string"),
+            # 기타 필드...
+        })
+
+        # ↓ Dataset(pa_table=...) 대신 직접 생성
+        def load_arrow_table(path):
+            with pa.memory_map(path, "r") as source:
+                reader = pa.ipc.RecordBatchStreamReader(source)
+                return reader.read_all()
+
+
+        if self.split == "train":
+            train_table = pa.concat_tables([
+                load_arrow_table(f"{dataset_dir}/cord-v2-train-00000-of-00002.arrow"),
+                load_arrow_table(f"{dataset_dir}/cord-v2-train-00001-of-00002.arrow"),
+            ])
+            # self.dataset = Dataset.from_dict(train_table.to_pydict())
+            self.dataset = Dataset.from_dict(train_table.to_pydict(), features=partial_features)
+            # self.dataset = Dataset(pa_table=train_table)
+        elif self.split == "validation":
+            self.dataset = Dataset.from_dict(load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow").to_pydict(), features=partial_features)
+        elif self.split == "test":
+            self.dataset = Dataset.from_dict(load_arrow_table(f"{dataset_dir}/cord-v2-test.arrow").to_pydict(), features=partial_features)
+        else:
+            raise ValueError(f"Invalid split: {self.split}")
         self.dataset_length = len(self.dataset)
 
         self.gt_token_sequences = []
+        from tqdm import tqdm
+        pbar = tqdm(total=self.dataset.num_rows, desc=f"Loading {self.split} dataset")
+        # metadata_list = []
         for sample in self.dataset:
+            pbar.update(1)
             ground_truth = json.loads(sample["ground_truth"])
             if "gt_parses" in ground_truth:  # when multiple ground truths are available, e.g., docvqa
                 assert isinstance(ground_truth["gt_parses"], list)
@@ -73,6 +114,26 @@ class DonutDataset(Dataset):
             else:
                 assert "gt_parse" in ground_truth and isinstance(ground_truth["gt_parse"], dict)
                 gt_jsons = [ground_truth["gt_parse"]]
+
+            # dataset_dir_save = '/home/dasom/donut/dataset/cord_v2'
+            # from pathlib import Path
+            # from hashlib import md5
+            # file_nm = md5(sample['image'].tobytes()).hexdigest()
+            # Path(f'{dataset_dir_save}/{self.split}').mkdir(parents=True, exist_ok=True)
+            # img_save_path = f"{dataset_dir_save}/{self.split}/{file_nm}.png"
+            # if not os.path.exists(img_save_path):
+            #     sample['image'].save(img_save_path)
+
+            # sample2save = {
+            #     'file_name': img_save_path,
+            #     'ground_truth' : ground_truth
+            # }
+
+            # metadata_list.append(sample2save)
+        # metadata_list
+        # with open(f"{dataset_dir_save}/{self.split}/metadata.jsonl", "w", encoding="utf-8") as f:
+        #     for item in metadata_list:
+        #         f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
             self.gt_token_sequences.append(
                 [
@@ -86,6 +147,7 @@ class DonutDataset(Dataset):
                     for gt_json in gt_jsons  # load json from list of json
                 ]
             )
+
 
         self.donut_model.decoder.add_special_tokens([self.task_start_token, self.prompt_end_token])
         self.prompt_end_token_id = self.donut_model.decoder.tokenizer.convert_tokens_to_ids(self.prompt_end_token)

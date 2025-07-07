@@ -16,7 +16,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
+from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.plugins import CheckpointIO
 from pytorch_lightning.utilities import rank_zero_only
 from sconf import Config
@@ -79,8 +79,19 @@ def set_seed(seed):
 
 def train(config):
     set_seed(config.get("seed", 42))
+    
+    # Initialize wandb
+    import wandb
+    if config.get("wandb_project"):
+        wandb.init(
+            project=config.get("wandb_project"),
+            name=f"{config.exp_name}_{config.exp_version}",
+            config=dict(config),
+            reinit=True
+        )
 
     model_module = DonutModelPLModule(config)
+    # model_module.to('cuda:0') # GPU로 셋팅이 안되서 느려짐 ? 왜 안될까?
     data_module = DonutDataPLModule(config)
 
     # add datasets to data_module
@@ -100,6 +111,7 @@ def train(config):
             model_module.model.decoder.add_special_tokens(["<yes/>", "<no/>"])
             
         for split in ["train", "validation"]:
+        # for split in ["test", ]:
             datasets[split].append(
                 DonutDataset(
                     dataset_name_or_path=dataset_name_or_path,
@@ -119,11 +131,11 @@ def train(config):
     data_module.train_datasets = datasets["train"]
     data_module.val_datasets = datasets["validation"]
 
-    logger = TensorBoardLogger(
+    logger = WandbLogger(
+        project=config.get("wandb_project", "donut-training"),
+        name=f"{config.exp_name}_{config.exp_version}",
+        log_model=True,
         save_dir=config.result_path,
-        name=config.exp_name,
-        version=config.exp_version,
-        default_hp_metric=False,
     )
 
     lr_callback = LearningRateMonitor(logging_interval="step")
@@ -162,8 +174,16 @@ def train(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True)
-    parser.add_argument("--exp_version", type=str, required=False)
+    # parser.add_argument("--config", type=str, required=True)
+# python train.py --config config/train_cord.yaml \
+#                 --pretrained_model_name_or_path "naver-clova-ix/donut-base" \
+#                 --dataset_name_or_paths '["naver-clova-ix/cord-v2"]' \
+#                 --exp_version "test_experiment"   
+    parser.add_argument("--config", type=str, default="/home/dasom/donut/config/train_cord.yaml")
+    # parser.add_argument("--pretrained_model_name_or_path", type=str, default="/data/models/naver-clova-ix/donut-base/models--naver-clova-ix--donut-base/snapshots/a959cf33c20e09215873e338299c900f57047c61")
+    # parser.add_argument("--dataset_name_or_paths", type=str, default="/data/datasets/naver-clova-ix/cord-v2")
+    # parser.add_argument("--dataset_name_or_paths", type=str, default="/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38")
+    parser.add_argument("--exp_version", type=str, default="test_experiment")
     args, left_argv = parser.parse_known_args()
 
     config = Config(args.config)
