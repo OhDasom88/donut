@@ -100,7 +100,9 @@ class SwinEncoder(nn.Module):
         x = self.model.patch_embed(x)
         # dasom 2025-07-07
         # swin 공시 모델 구조 구현에서 pos drop이 제거됨
-        # x = self.model.pos_drop(x)
+        if torch.__version__ == '2.7.1+cu126':
+            # python 3.12 버전에서는 pos_drop이 제거됨
+            x = self.model.pos_drop(x)
 
         x = self.model.layers(x)
         return x
@@ -434,11 +436,19 @@ class DonutModel(PreTrainedModel):
 
         with torch.autocast(device_type=encoder_outputs.device.type, dtype=torch.float16):
             # encoder_outputs = encoder_outputs.flatten(1, 2)
-            decoder_outputs = self.decoder(
-                input_ids=decoder_input_ids,
-                encoder_hidden_states=encoder_outputs.flatten(1, 2),
-                labels=decoder_labels,
-            )
+            if torch.__version__ == '2.7.1+cu126':
+                pass
+                decoder_outputs = self.decoder(
+                    input_ids=decoder_input_ids,
+                    encoder_hidden_states=encoder_outputs,
+                    labels=decoder_labels,
+                )
+            else:
+                decoder_outputs = self.decoder(
+                    input_ids=decoder_input_ids,
+                    encoder_hidden_states=encoder_outputs.flatten(1, 2),
+                    labels=decoder_labels,
+                )
         return decoder_outputs
 
 
@@ -527,10 +537,14 @@ class DonutModel(PreTrainedModel):
         # )
 
 
-
         with torch.autocast(device_type=str(self.decoder.model.device), dtype=torch.float16):
             # encoder_outputs = encoder_outputs.flatten(1, 2)
-            encoder_outputs.last_hidden_state = encoder_outputs.last_hidden_state.flatten(1, 2)
+            if torch.__version__ == '2.7.1+cu126':
+                pass
+                # encoder_outputs.last_hidden_state = encoder_outputs.last_hidden_state.flatten(1, 2)
+            else:
+                # python 3.12 버전에서 설치했던 torch에서는 오류 발생
+                encoder_outputs.last_hidden_state = encoder_outputs.last_hidden_state.flatten(1, 2)
             decoder_output = self.decoder.model.generate(
                 # input_ids=prompt_tensors,
                 # encoder_hidden_states=encoder_outputs.flatten(1, 2),

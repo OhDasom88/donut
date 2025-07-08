@@ -23,7 +23,7 @@ from sconf import Config
 
 from donut import DonutDataset
 from lightning_module import DonutDataPLModule, DonutModelPLModule
-
+import wandb
 
 class CustomCheckpointIO(CheckpointIO):
     def save_checkpoint(self, checkpoint, path, storage_options=None):
@@ -81,7 +81,7 @@ def train(config):
     set_seed(config.get("seed", 42))
     
     # Initialize wandb
-    import wandb
+    
     if config.get("wandb_project"):
         wandb.init(
             project=config.get("wandb_project"),
@@ -152,6 +152,9 @@ def train(config):
     bar = ProgressBar(config)
 
     custom_ckpt = CustomCheckpointIO()
+
+    logger.watch(model_module, log="all")
+
     trainer = pl.Trainer(
         num_nodes=config.get("num_nodes", 1),
         devices=torch.cuda.device_count(),
@@ -164,6 +167,7 @@ def train(config):
         check_val_every_n_epoch=config.check_val_every_n_epoch,
         gradient_clip_val=config.gradient_clip_val,
         precision=16,
+        # precision=32, # 16은 모델 출력 확인 중 nan 문제 발생, dasom 2025-07-07
         num_sanity_val_steps=0,
         logger=logger,
         callbacks=[lr_callback, checkpoint_callback, bar],

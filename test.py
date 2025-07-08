@@ -35,7 +35,42 @@ def test(args):
     accs = []
 
     evaluator = JSONParseEvaluator()
-    dataset = load_dataset(args.dataset_name_or_path, split=args.split)
+    # dataset = load_dataset(args.dataset_name_or_path, split=args.split)
+    from datasets import Dataset, DatasetDict, Image, Features, Value
+    import pyarrow as pa
+    dataset_dir = "/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990"
+    partial_features = Features({
+        "image": Image(),  # 이미지 경로 복원
+        "ground_truth": Value("string"),
+        # 기타 필드...
+    })
+
+    # ↓ Dataset(pa_table=...) 대신 직접 생성
+    def load_arrow_table(path):
+        with pa.memory_map(path, "r") as source:
+            reader = pa.ipc.RecordBatchStreamReader(source)
+            return reader.read_all()
+    if args.split == "train":
+        train_table = pa.concat_tables([
+            load_arrow_table(f"{dataset_dir}/cord-v2-train-00000-of-00002.arrow"),
+            load_arrow_table(f"{dataset_dir}/cord-v2-train-00001-of-00002.arrow"),
+        ])
+        # 처음 30개만 잘라내서 테스트
+        train_table = train_table.slice(0, 30)
+        # train_table = train_table.slice(0, 10)
+        
+        # self.dataset = Dataset.from_dict(train_table.to_pydict())
+        dataset = Dataset.from_dict(train_table.to_pydict(), features=partial_features)
+        # self.dataset = Dataset(pa_table=train_table)
+    elif args.split == "validation":
+        validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
+        # 처음 10개만 잘라내서 테스트
+        validation_table = validation_table.slice(0, 10)
+        dataset = Dataset.from_dict(validation_table.to_pydict(), features=partial_features)
+    elif args.split == "test":
+        dataset = Dataset.from_dict(load_arrow_table(f"{dataset_dir}/cord-v2-test.arrow").to_pydict(), features=partial_features)
+    else:
+        raise ValueError(f"Invalid split: {args.split}")
 
     for idx, sample in tqdm(enumerate(dataset), total=len(dataset)):
         ground_truth = json.loads(sample["ground_truth"])
@@ -85,14 +120,39 @@ def test(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pretrained_model_name_or_path", type=str)
-    parser.add_argument("--dataset_name_or_path", type=str)
-    parser.add_argument("--split", type=str, default="test")
-    parser.add_argument("--task_name", type=str, default=None)
-    parser.add_argument("--save_path", type=str, default=None)
+    parser.add_argument(
+        "--pretrained_model_name_or_path", 
+        default="/home/dasom/donut/result/train_cord/test_experiment",
+        type=str
+    )
+    parser.add_argument(
+        "--dataset_name_or_path", 
+        default="/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990",
+        type=str
+    )
+    
+    parser.add_argument(
+        "--split", 
+        type=str, 
+        # default="test"
+        default="train"
+    )
+    parser.add_argument(
+        "--task_name", 
+        type=str, 
+        # default=None
+        default="cord"
+    )
+    parser.add_argument(
+        "--save_path", 
+        type=str, 
+        default=f'result/train_cord_train_cord-v2.json'
+    )
     args, left_argv = parser.parse_known_args()
 
     if args.task_name is None:
         args.task_name = os.path.basename(args.dataset_name_or_path)
 
     predictions = test(args)
+
+    predictions

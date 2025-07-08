@@ -142,3 +142,6 @@ dmypy.json
 
 # dasom 2025-07-07
 wandb/
+
+# dasom 2025-07-08
+*.png

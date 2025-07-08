@@ -22,8 +22,8 @@ from zss import Node
 
 
 def save_json(write_path: Union[str, bytes, os.PathLike], save_obj: Any):
-    with open(write_path, "w") as f:
-        json.dump(save_obj, f)
+    with open(write_path, "w", encoding="utf-8") as f:
+        json.dump(save_obj, f, indent=4, ensure_ascii=False)
 
 
 def load_json(json_path: Union[str, bytes, os.PathLike]):
@@ -90,11 +90,18 @@ class DonutDataset(Dataset):
                 load_arrow_table(f"{dataset_dir}/cord-v2-train-00000-of-00002.arrow"),
                 load_arrow_table(f"{dataset_dir}/cord-v2-train-00001-of-00002.arrow"),
             ])
+            # 처음 30개만 잘라내서 테스트
+            # train_table = train_table.slice(0, 30)
+            train_table = train_table.slice(0, 10)
+            
             # self.dataset = Dataset.from_dict(train_table.to_pydict())
             self.dataset = Dataset.from_dict(train_table.to_pydict(), features=partial_features)
             # self.dataset = Dataset(pa_table=train_table)
         elif self.split == "validation":
-            self.dataset = Dataset.from_dict(load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow").to_pydict(), features=partial_features)
+            validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
+            # 처음 10개만 잘라내서 테스트
+            validation_table = validation_table.slice(0, 10)
+            self.dataset = Dataset.from_dict(validation_table.to_pydict(), features=partial_features)
         elif self.split == "test":
             self.dataset = Dataset.from_dict(load_arrow_table(f"{dataset_dir}/cord-v2-test.arrow").to_pydict(), features=partial_features)
         else:
@@ -107,6 +114,8 @@ class DonutDataset(Dataset):
         # metadata_list = []
         for sample in self.dataset:
             pbar.update(1)
+            # if pbar.n>32:
+            #     break
             ground_truth = json.loads(sample["ground_truth"])
             if "gt_parses" in ground_truth:  # when multiple ground truths are available, e.g., docvqa
                 assert isinstance(ground_truth["gt_parses"], list)
