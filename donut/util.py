@@ -72,46 +72,46 @@ class DonutDataset(Dataset):
 
 
         # dataset_dir = "/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990"
-        dataset_dir = "/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990"
-        partial_features = Features({
-            "image": Image(),  # 이미지 경로 복원
-            "ground_truth": Value("string"),
-            # 기타 필드...
-        })
+        # dataset_dir = "/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990"
+        # partial_features = Features({
+        #     "image": Image(),  # 이미지 경로 복원
+        #     "ground_truth": Value("string"),
+        #     # 기타 필드...
+        # })
 
-        # ↓ Dataset(pa_table=...) 대신 직접 생성
-        def load_arrow_table(path):
-            with pa.memory_map(path, "r") as source:
-                reader = pa.ipc.RecordBatchStreamReader(source)
-                return reader.read_all()
+        # # ↓ Dataset(pa_table=...) 대신 직접 생성
+        # def load_arrow_table(path):
+        #     with pa.memory_map(path, "r") as source:
+        #         reader = pa.ipc.RecordBatchStreamReader(source)
+        #         return reader.read_all()
 
-        if self.split == "train":
-            # train_table = pa.concat_tables([
-            #     load_arrow_table(f"{dataset_dir}/cord-v2-train-00000-of-00002.arrow"),
-            #     load_arrow_table(f"{dataset_dir}/cord-v2-train-00001-of-00002.arrow"),
-            # ])
-            # # 처음 30개만 잘라내서 테스트
-            # # train_table = train_table.slice(0, 30)
-            # train_table = train_table.slice(0, 10)
+        # if self.split == "train":
+        #     # train_table = pa.concat_tables([
+        #     #     load_arrow_table(f"{dataset_dir}/cord-v2-train-00000-of-00002.arrow"),
+        #     #     load_arrow_table(f"{dataset_dir}/cord-v2-train-00001-of-00002.arrow"),
+        #     # ])
+        #     # # 처음 30개만 잘라내서 테스트
+        #     # # train_table = train_table.slice(0, 30)
+        #     # train_table = train_table.slice(0, 10)
             
-            # # self.dataset = Dataset.from_dict(train_table.to_pydict())
-            # self.dataset = Dataset.from_dict(train_table.to_pydict(), features=partial_features)
-            # 오버 피팅 테스트
-            validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
-            # 처음 10개만 잘라내서 테스트
-            validation_table = validation_table.slice(0, 10)
-            self.dataset = Dataset.from_dict(validation_table.to_pydict(), features=partial_features)
-            # self.dataset = Dataset(pa_table=train_table)
-        elif self.split == "validation":
-            validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
-            # 처음 10개만 잘라내서 테스트
-            validation_table = validation_table.slice(0, 10)
-            self.dataset = Dataset.from_dict(validation_table.to_pydict(), features=partial_features)
-        elif self.split == "test":
-            self.dataset = Dataset.from_dict(load_arrow_table(f"{dataset_dir}/cord-v2-test.arrow").to_pydict(), features=partial_features)
-        else:
-            raise ValueError(f"Invalid split: {self.split}")
-        self.dataset_length = len(self.dataset)
+        #     # # self.dataset = Dataset.from_dict(train_table.to_pydict())
+        #     # self.dataset = Dataset.from_dict(train_table.to_pydict(), features=partial_features)
+        #     # 오버 피팅 테스트
+        #     validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
+        #     # 처음 10개만 잘라내서 테스트
+        #     validation_table = validation_table.slice(0, 10)
+        #     self.dataset = Dataset.from_dict(validation_table.to_pydict(), features=partial_features)
+        #     # self.dataset = Dataset(pa_table=train_table)
+        # elif self.split == "validation":
+        #     validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
+        #     # 처음 10개만 잘라내서 테스트
+        #     validation_table = validation_table.slice(0, 10)
+        #     self.dataset = Dataset.from_dict(validation_table.to_pydict(), features=partial_features)
+        # elif self.split == "test":
+        #     self.dataset = Dataset.from_dict(load_arrow_table(f"{dataset_dir}/cord-v2-test.arrow").to_pydict(), features=partial_features)
+        # else:
+        #     raise ValueError(f"Invalid split: {self.split}")
+        # self.dataset_length = len(self.dataset)
         
         from tqdm import tqdm
         from glob import glob

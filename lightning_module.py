@@ -83,14 +83,16 @@ class DonutModelPLModule(pl.LightningModule):
 
         scores = list()
         for pred, answer in zip(preds, answers):
+            answer_token_length = len(self.model.decoder.tokenizer.encode(answer))
+            pred_token_length = len(self.model.decoder.tokenizer.encode(pred))
             pred = re.sub(r"(?:(?<=>) | (?=</s_))", "", pred)
             answer = re.sub(r"<.*?>", "", answer, count=1)
             answer = answer.replace(self.model.decoder.tokenizer.eos_token, "")
             scores.append(edit_distance(pred, answer) / max(len(pred), len(answer)))
 
             if self.config.get("verbose", False) and len(scores) == 1:
-                self.print(f"Prediction: {pred}")
-                self.print(f"    Answer: {answer}")
+                self.print(f"Prediction(length:{pred_token_length}): {pred}")
+                self.print(f"    Answer(length:{answer_token_length}): {answer}")
                 self.print(f" Normed ED: {scores[0]}")
 
         self.validation_step_outputs[dataloader_idx].append(scores)
