@@ -71,6 +71,7 @@ class DonutDataset(Dataset):
         import pyarrow as pa
 
 
+        # dataset_dir = "/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990"
         dataset_dir = "/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/0.0.0/e58c486e4bad3c9cf8d969f920449d1103bbdf069a7150db2cf96c695aeca990"
         partial_features = Features({
             "image": Image(),  # 이미지 경로 복원
@@ -84,18 +85,22 @@ class DonutDataset(Dataset):
                 reader = pa.ipc.RecordBatchStreamReader(source)
                 return reader.read_all()
 
-
         if self.split == "train":
-            train_table = pa.concat_tables([
-                load_arrow_table(f"{dataset_dir}/cord-v2-train-00000-of-00002.arrow"),
-                load_arrow_table(f"{dataset_dir}/cord-v2-train-00001-of-00002.arrow"),
-            ])
-            # 처음 30개만 잘라내서 테스트
-            # train_table = train_table.slice(0, 30)
-            train_table = train_table.slice(0, 10)
+            # train_table = pa.concat_tables([
+            #     load_arrow_table(f"{dataset_dir}/cord-v2-train-00000-of-00002.arrow"),
+            #     load_arrow_table(f"{dataset_dir}/cord-v2-train-00001-of-00002.arrow"),
+            # ])
+            # # 처음 30개만 잘라내서 테스트
+            # # train_table = train_table.slice(0, 30)
+            # train_table = train_table.slice(0, 10)
             
-            # self.dataset = Dataset.from_dict(train_table.to_pydict())
-            self.dataset = Dataset.from_dict(train_table.to_pydict(), features=partial_features)
+            # # self.dataset = Dataset.from_dict(train_table.to_pydict())
+            # self.dataset = Dataset.from_dict(train_table.to_pydict(), features=partial_features)
+            # 오버 피팅 테스트
+            validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
+            # 처음 10개만 잘라내서 테스트
+            validation_table = validation_table.slice(0, 10)
+            self.dataset = Dataset.from_dict(validation_table.to_pydict(), features=partial_features)
             # self.dataset = Dataset(pa_table=train_table)
         elif self.split == "validation":
             validation_table = load_arrow_table(f"{dataset_dir}/cord-v2-validation.arrow")
@@ -107,16 +112,34 @@ class DonutDataset(Dataset):
         else:
             raise ValueError(f"Invalid split: {self.split}")
         self.dataset_length = len(self.dataset)
-
-        self.gt_token_sequences = []
+        
         from tqdm import tqdm
-        pbar = tqdm(total=self.dataset.num_rows, desc=f"Loading {self.split} dataset")
+        from glob import glob
+        import PIL
+        
+        self.gt_token_sequences = []
         # metadata_list = []
-        for sample in self.dataset:
+        dataset_dir = "/home/dasom/donut/dataset/hscatalysts/validation"
+        with open(f"{dataset_dir}/metadata.jsonl", "r") as f:
+            metadata_list = [json.loads(line) for line in f]
+        self.dataset = Dataset.from_list(
+            [
+                {
+                    'image' : PIL.Image.open(el.get('file_name')), 
+                    'ground_truth' : json.dumps(el.get('ground_truth'))
+                } 
+                for el in metadata_list
+            ]
+        )
+        self.dataset_length = len(self.dataset)
+        pbar = tqdm(total=self.dataset_length, desc=f"Loading {self.split} dataset")
+        # for sample in self.dataset:
+        for sample in metadata_list:
             pbar.update(1)
             # if pbar.n>32:
             #     break
-            ground_truth = json.loads(sample["ground_truth"])
+            # ground_truth = json.loads(sample["ground_truth"])
+            ground_truth = sample["ground_truth"]
             if "gt_parses" in ground_truth:  # when multiple ground truths are available, e.g., docvqa
                 assert isinstance(ground_truth["gt_parses"], list)
                 gt_jsons = ground_truth["gt_parses"]
@@ -156,7 +179,6 @@ class DonutDataset(Dataset):
                     for gt_json in gt_jsons  # load json from list of json
                 ]
             )
-
 
         self.donut_model.decoder.add_special_tokens([self.task_start_token, self.prompt_end_token])
         self.prompt_end_token_id = self.donut_model.decoder.tokenizer.convert_tokens_to_ids(self.prompt_end_token)

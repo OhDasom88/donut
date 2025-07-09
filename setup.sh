@@ -10,3 +10,4 @@ pip install transformers==4.38.0
 pip install timm==0.6.13
 pip install pytorch-lightning==1.8.6
 pip install donut-python
+pip install google-cloud-documentai # donut에서 학습할 데이터 생성

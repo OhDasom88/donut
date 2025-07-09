@@ -15,7 +15,8 @@ from pathlib import Path
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+# from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.plugins import CheckpointIO
 from pytorch_lightning.utilities import rank_zero_only
@@ -24,6 +25,7 @@ from sconf import Config
 from donut import DonutDataset
 from lightning_module import DonutDataPLModule, DonutModelPLModule
 import wandb
+from datetime import datetime
 
 class CustomCheckpointIO(CheckpointIO):
     def save_checkpoint(self, checkpoint, path, storage_options=None):
@@ -144,10 +146,21 @@ def train(config):
         monitor="val_metric",
         dirpath=Path(config.result_path) / config.exp_name / config.exp_version,
         filename="artifacts",
-        save_top_k=1,
-        save_last=False,
+        # save_top_k=1,
+        save_top_k=3,
+        # save_last=False,
+        save_last=True,
         mode="min",
     )
+
+    early_stop_callback = EarlyStopping(
+        monitor='val_metric',
+        min_delta=0.00,
+        patience=50,
+        verbose=True,
+        mode='min'
+    )
+
 
     bar = ProgressBar(config)
 
@@ -170,7 +183,8 @@ def train(config):
         # precision=32, # 16은 모델 출력 확인 중 nan 문제 발생, dasom 2025-07-07
         num_sanity_val_steps=0,
         logger=logger,
-        callbacks=[lr_callback, checkpoint_callback, bar],
+        # callbacks=[lr_callback, checkpoint_callback, bar],
+        callbacks=[lr_callback, checkpoint_callback, bar, early_stop_callback],
     )
 
     trainer.fit(model_module, data_module, ckpt_path=config.get("resume_from_checkpoint_path", None))
@@ -187,7 +201,11 @@ if __name__ == "__main__":
     # parser.add_argument("--pretrained_model_name_or_path", type=str, default="/data/models/naver-clova-ix/donut-base/models--naver-clova-ix--donut-base/snapshots/a959cf33c20e09215873e338299c900f57047c61")
     # parser.add_argument("--dataset_name_or_paths", type=str, default="/data/datasets/naver-clova-ix/cord-v2")
     # parser.add_argument("--dataset_name_or_paths", type=str, default="/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38")
-    parser.add_argument("--exp_version", type=str, default="test_experiment")
+    
+    now = datetime.now()
+    now_str = now.strftime("%Y%m%d_%H%M%S")
+    # parser.add_argument("--exp_version", type=str, default="test_experiment")
+    parser.add_argument("--exp_version", type=str, default=now_str)
     args, left_argv = parser.parse_known_args()
 
     config = Config(args.config)

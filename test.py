@@ -135,7 +135,8 @@ if __name__ == "__main__":
         "--split", 
         type=str, 
         # default="test"
-        default="train"
+        # default="train"
+        default="validation" # overfitting 테스트
     )
     parser.add_argument(
         "--task_name", 
@@ -146,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_path", 
         type=str, 
-        default=f'result/train_cord_train_cord-v2.json'
+        default=f'result/8qfp7vf0.json'
     )
     args, left_argv = parser.parse_known_args()
 
