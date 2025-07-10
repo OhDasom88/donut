@@ -4,7 +4,8 @@ pretrained_model_name_or_path: "naver-clova-ix/donut-base" # loading a pre-train
 # pretrained_model_name_or_path: "/data/models/naver-clova-ix/donut-base" # loading a pre-trained model (from moldehub or path)
 # pretrained_model_name_or_path: "/data/models/naver-clova-ix/donut-base/models--naver-clova-ix--donut-base/snapshots/a959cf33c20e09215873e338299c900f57047c6/" # loading a pre-trained model (from moldehub or path)
 # dataset_name_or_paths: ["naver-clova-ix/cord-v2"] # loading datasets (from moldehub or path)
-dataset_name_or_paths: ["/home/dasom/donut/dataset/hscatalysts/validation"] # loading datasets (from moldehub or path)
+# dataset_name_or_paths: ["/home/dasom/donut/dataset/hscatalysts/validation"] # loading datasets (from moldehub or path)
+dataset_name_or_paths: ["/home/dasom/donut/dataset/hscatalysts/train"] # loading datasets (from moldehub or path)
 # dataset_name_or_paths: ["/data/datasets/naver-clova-ix/cord-v2"] # loading datasets (from moldehub or path)
 # dataset_name_or_paths: ["/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38/"] # loading datasets (from moldehub or path)
 sort_json_key: False # cord dataset is preprocessed, and publicly available at https://huggingface.co/datasets/naver-clova-ix/cord-v2
@@ -15,7 +16,8 @@ val_batch_sizes: [1]
 input_size: [1280, 960] # when the input resolution differs from the pre-training setting, some weights will be newly initialized (but the model training would be okay)
 # input_size: [2560, 1920] # when the input resolution differs from the pre-training setting, some weights will be newly initialized (but the model training would be okay)
 # max_length: 768
-max_length: 4096 # 문서에서 추출해야 하는 토큰수가 더 많음 따라서 더 길게 설정
+# max_length: 4096 # 문서에서 추출해야 하는 토큰수가 더 많음 따라서 더 길게 설정
+max_length: 2400 # 너무 길면 메모리 오류 발생, 전체적으로 토큰 수를 줄이고(최대 2335) max_length 를 딱맞춰 설정
 align_long_axis: False
 num_nodes: 1
 seed: 2022

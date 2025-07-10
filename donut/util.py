@@ -119,9 +119,15 @@ class DonutDataset(Dataset):
         
         self.gt_token_sequences = []
         # metadata_list = []
-        dataset_dir = "/home/dasom/donut/dataset/hscatalysts/validation"
+        dataset_dir = dataset_name_or_path
         with open(f"{dataset_dir}/metadata.jsonl", "r") as f:
             metadata_list = [json.loads(line) for line in f]
+            if self.split == "train":
+                metadata_list = metadata_list[:8]
+            elif self.split == "validation":
+                metadata_list = metadata_list[8:10]
+            elif self.split == "test":
+                pass
         self.dataset = Dataset.from_list(
             [
                 {
@@ -135,7 +141,6 @@ class DonutDataset(Dataset):
         pbar = tqdm(total=self.dataset_length, desc=f"Loading {self.split} dataset")
         # for sample in self.dataset:
         for sample in metadata_list:
-            pbar.update(1)
             # if pbar.n>32:
             #     break
             # ground_truth = json.loads(sample["ground_truth"])
@@ -179,7 +184,15 @@ class DonutDataset(Dataset):
                     for gt_json in gt_jsons  # load json from list of json
                 ]
             )
+            seq = self.gt_token_sequences[-1]
+            # pbar.set_postfix({
+            #     'number_of_token':len(self.donut_model.decoder.tokenizer(seq).get('input_ids')[0])
+            # })
+            print(seq)
+            print('estimated number of tokens', len(self.donut_model.decoder.tokenizer(seq).get('input_ids')[0]))
+            pbar.update(1)
 
+        # { seq[0][:100] : len(self.donut_model.decoder.tokenizer(seq).get('input_ids')[0]) for seq in self.gt_token_sequences}
         self.donut_model.decoder.add_special_tokens([self.task_start_token, self.prompt_end_token])
         self.prompt_end_token_id = self.donut_model.decoder.tokenizer.convert_tokens_to_ids(self.prompt_end_token)
 

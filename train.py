@@ -198,7 +198,8 @@ if __name__ == "__main__":
 #                 --dataset_name_or_paths '["naver-clova-ix/cord-v2"]' \
 #                 --exp_version "test_experiment"   
     # parser.add_argument("--config", type=str, default="/home/dasom/donut/config/train_cord.yaml")
-    parser.add_argument("--config", type=str, default="/home/dasom/donut/config/train_hs_v1.yaml")
+    # parser.add_argument("--config", type=str, default="/home/dasom/donut/config/train_hs_v1.yaml")
+    parser.add_argument("--config", type=str, default="/home/dasom/donut/config/train_hs_v2.yaml")
     # parser.add_argument("--pretrained_model_name_or_path", type=str, default="/data/models/naver-clova-ix/donut-base/models--naver-clova-ix--donut-base/snapshots/a959cf33c20e09215873e338299c900f57047c61")
     # parser.add_argument("--dataset_name_or_paths", type=str, default="/data/datasets/naver-clova-ix/cord-v2")
     # parser.add_argument("--dataset_name_or_paths", type=str, default="/data/datasets/naver-clova-ix/cord-v2/naver-clova-ix___cord-v2/naver-clova-ix--cord-v2-1b6a08e905758c38")
